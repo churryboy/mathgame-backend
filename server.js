@@ -217,12 +217,10 @@ app.post('/api/stats/update', async (req, res) => {
   }
 });
 
-// Get leaderboard
-app.get('/api/leaderboard/:grade?', async (req, res) => {
-  const { grade } = req.params;
-
+// Get leaderboard - all grades
+app.get('/api/leaderboard', async (req, res) => {
   try {
-    let query = `
+    const query = `
       SELECT 
         u.username, 
         u.grade, 
@@ -235,17 +233,44 @@ app.get('/api/leaderboard/:grade?', async (req, res) => {
         s.last_played
       FROM users u
       JOIN user_stats s ON u.id = s.user_id
+      ORDER BY s.best_score DESC, s.best_stage DESC LIMIT 100
     `;
 
-    const params = [];
-    if (grade) {
-      query += ' WHERE u.grade = $1';
-      params.push(grade);
-    }
+    const result = await pool.query(query);
 
-    query += ' ORDER BY s.best_score DESC, s.best_stage DESC LIMIT 100';
+    res.json({
+      success: true,
+      leaderboard: result.rows
+    });
+  } catch (error) {
+    console.error('Leaderboard error:', error);
+    res.status(500).json({ error: 'Failed to get leaderboard' });
+  }
+});
 
-    const result = await pool.query(query, params);
+// Get leaderboard - specific grade
+app.get('/api/leaderboard/:grade', async (req, res) => {
+  const { grade } = req.params;
+
+  try {
+    const query = `
+      SELECT 
+        u.username, 
+        u.grade, 
+        u.school_name,
+        s.best_score,
+        s.best_stage,
+        s.tier,
+        s.correct_answers,
+        s.total_answers,
+        s.last_played
+      FROM users u
+      JOIN user_stats s ON u.id = s.user_id
+      WHERE u.grade = $1
+      ORDER BY s.best_score DESC, s.best_stage DESC LIMIT 100
+    `;
+
+    const result = await pool.query(query, [grade]);
 
     res.json({
       success: true,
